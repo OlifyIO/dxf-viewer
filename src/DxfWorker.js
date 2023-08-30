@@ -187,6 +187,10 @@ export class DxfWorker {
         if (Array.isArray(options)) {
             return options.map(o => this._CloneOptions(o))
         } else if (typeof options === "object" && options !== null) {
+            if (options instanceof HTMLCanvasElement || options instanceof WebGLRenderingContext || options instanceof WebGL2RenderingContext) {
+              return null;
+            }
+
             const result = {}
             for (const propName in options) {
                 // noinspection JSUnfilteredForInLoop

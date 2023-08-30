@@ -24,12 +24,16 @@ export type DxfViewerOptions = {
     canvasPremultipliedAlpha: boolean,
     antialias: boolean,
     colorCorrection: boolean,
+    canvas: HTMLCanvasElement | OffscreenCanvas,
+    context: WebGLRenderingContext,
+    autoClear: boolean,
     blackWhiteInversion: boolean,
     pointSize: number,
     sceneOptions: DxfSceneOptions,
     retainParsedDxf: boolean,
     preserveDrawingBuffer: boolean,
-    fileEncoding: string
+    fileEncoding: string,
+    enableControls: boolean
 }
 
 export type DxfViewerLoadParams = {

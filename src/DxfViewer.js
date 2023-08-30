@@ -38,7 +38,9 @@ export class DxfViewer {
                 premultipliedAlpha: options.canvasPremultipliedAlpha,
                 antialias: options.antialias,
                 depth: false,
-                preserveDrawingBuffer: options.preserveDrawingBuffer
+                preserveDrawingBuffer: options.preserveDrawingBuffer,
+                canvas: options.canvas,
+                context: options.context
             })
         } catch (e) {
             console.log("Failed to create renderer: " + e)
@@ -47,6 +49,7 @@ export class DxfViewer {
         }
         const renderer = this.renderer
         renderer.setPixelRatio(window.devicePixelRatio)
+        renderer.autoClear = options.autoClear
 
         const camera = this.camera = new three.OrthographicCamera(-1, 1, 1, -1, 0.1, 2);
         camera.position.z = 1
@@ -80,7 +83,10 @@ export class DxfViewer {
             this.resizeObserver = new ResizeObserver(entries => this._OnResize(entries[0]))
             this.resizeObserver.observe(domContainer)
         }
-        domContainer.appendChild(this.canvas)
+
+        if (!options.canvas) {
+          domContainer.appendChild(this.canvas)
+        }
 
         this.canvas.addEventListener("pointerdown", this._OnPointerEvent.bind(this))
         this.canvas.addEventListener("pointerup", this._OnPointerEvent.bind(this))
@@ -227,7 +233,10 @@ export class DxfViewer {
                           MessageLevel.WARN)
         }
 
-        this._CreateControls()
+        if (this.options.enableControls) {
+          this._CreateControls()
+        }
+
         this.Render()
     }
 
@@ -664,6 +673,16 @@ export class DxfViewer {
 DxfViewer.MessageLevel = MessageLevel
 
 DxfViewer.DefaultOptions = {
+    /**
+       * A Canvas where the renderer draws its output.
+       */
+    canvas: undefined,
+    /**
+     * A WebGL Rendering Context.
+     * (https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext)
+     * Default is null
+     */
+    context: undefined,
     canvasWidth: 400,
     canvasHeight: 300,
     /** Automatically resize canvas when the container is resized. This options utilizes
@@ -671,6 +690,8 @@ DxfViewer.DefaultOptions = {
      *  ignored if the option is enabled.
      */
     autoResize: false,
+    /** Automatically clear the canvas before rendering. */
+    autoClear: true,
     /** Frame buffer clear color. */
     clearColor: new three.Color("#000"),
     /** Frame buffer clear color alpha value. */
@@ -706,7 +727,10 @@ DxfViewer.DefaultOptions = {
      * be a subject for future changes. The specified value should be suitable for passing as
      * `TextDecoder` constructor `label` parameter.
      */
-    fileEncoding: "utf-8"
+    fileEncoding: "utf-8",
+
+    /** Whether to enable mouse orbit controls */
+    enableControls: true
 }
 
 DxfViewer.SetupWorker = function () {
@@ -862,7 +886,7 @@ class Batch {
             }
             const obj = new objConstructor(geometry, material)
             obj.frustumCulled = false
-            obj.matrixAutoUpdate = false
+            obj.matrixAutoUpdate = true
             return obj
         }
 
