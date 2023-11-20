@@ -33,7 +33,8 @@ export type DxfViewerOptions = {
     retainParsedDxf: boolean,
     preserveDrawingBuffer: boolean,
     fileEncoding: string,
-    enableControls: boolean
+    enableControls: boolean,
+    origin: THREE.Vector2 | null
 }
 
 export type DxfViewerLoadParams = {
@@ -41,7 +42,8 @@ export type DxfViewerLoadParams = {
     fonts: string[] | null,
     progressCbk: ((phase: "font" | "fetch" | "parse" | "prepare",
                    processedSize: number, totalSize: number) => void) | null,
-    workerFactory: (() => Worker) | null
+    workerFactory: (() => Worker) | null,
+    origin?: THREE.Vector2 | null
 }
 
 export type LayerInfo = {
@@ -73,6 +75,17 @@ export declare class DxfViewer {
     ShowLayer(name: string, show: boolean): void
     Subscribe(eventName: EventName, eventHandler: (event: any) => void): void
     Unsubscribe(eventName: EventName, eventHandler: (event: any) => void): void
+}
+
+export declare class DxfScene {
+    constructor(options: DxfSceneOptions | null)
+    Build(dxf, fontFetchers): void
+}
+
+export declare class DxfWorker {
+  constructor(worker: any, isWorker: boolean = false)
+  Load(url, fonts, options, progressCbk): Promise<{ scene, dxf }>
+  Destroy(): Promise<void>
 }
 
 export declare namespace DxfViewer {

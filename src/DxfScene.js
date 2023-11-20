@@ -79,7 +79,7 @@ export class DxfScene {
         /* Scene origin. All input coordinates are made local to this point to minimize precision
         * loss.
         */
-        this.origin = null
+        this.origin = options.origin || null
         /* RBTree<BatchingKey, RenderBatch> */
         this.batches = new RBTree((b1, b2) => b1.key.Compare(b2.key))
         /* Indexed by layer name, value is layer object from parsed DXF. */

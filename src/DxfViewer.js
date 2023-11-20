@@ -168,7 +168,7 @@ export class DxfViewer {
      * @param workerFactory {?Function} Factory for worker creation. The worker script should
      *  invoke DxfViewer.SetupWorker() function.
      */
-    async Load({url, fonts = null, progressCbk = null, workerFactory = null}) {
+    async Load({url, fonts = null, progressCbk = null, workerFactory = null, origin = null}) {
         if (url === null || url === undefined) {
             throw new Error("`url` parameter is not specified")
         }
@@ -178,7 +178,10 @@ export class DxfViewer {
         this.Clear()
 
         this.worker = new DxfWorker(workerFactory ? workerFactory() : null)
-        const {scene, dxf} = await this.worker.Load(url, fonts, this.options, progressCbk)
+        const {scene, dxf} = await this.worker.Load(url, fonts, {
+          ...this.options,
+          origin: origin || this.options.origin
+        }, progressCbk)
         await this.worker.Destroy()
         this.worker = null
         this.parsedDxf = dxf
@@ -730,7 +733,10 @@ DxfViewer.DefaultOptions = {
     fileEncoding: "utf-8",
 
     /** Whether to enable mouse orbit controls */
-    enableControls: true
+    enableControls: true,
+
+    // Override default origin translation
+    origin: null
 }
 
 DxfViewer.SetupWorker = function () {
