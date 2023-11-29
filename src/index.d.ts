@@ -62,6 +62,8 @@ export declare class DxfViewer {
     FitView(minX: number, maxX: number, minY: number, maxY: number, padding: number): void
     GetCamera(): THREE.OrthographicCamera
     GetCanvas(): HTMLCanvasElement
+    GetClippingPlanes(): THREE.Plane[]
+    GetDrawingObject(): THREE.Group
     GetLayers(): Iterable<LayerInfo>
     GetOrigin(): THREE.Vector2
     GetBounds(): {maxX: number, maxY: number, minX: number, minY: number} | null
@@ -72,6 +74,7 @@ export declare class DxfViewer {
     Render(): void
     SetSize(width: number, height: number): void
     SetView(center: THREE.Vector3, width: number): void
+    SetClippingPlanes(planes: THREE.Plane[]): void
     ShowLayer(name: string, show: boolean): void
     Subscribe(eventName: EventName, eventHandler: (event: any) => void): void
     Unsubscribe(eventName: EventName, eventHandler: (event: any) => void): void

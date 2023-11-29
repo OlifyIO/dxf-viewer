@@ -31,6 +31,8 @@ export class DxfViewer {
         this.clearColor = this.options.clearColor.getHex()
 
         this.scene = new three.Scene()
+        this.drawingObject = new three.Object3D()
+        this.scene.add(this.drawingObject)
 
         try {
             this.renderer = new three.WebGLRenderer({
@@ -102,6 +104,8 @@ export class DxfViewer {
 
         /** Set during data loading. */
         this.worker = null
+
+        this.clippingPlanes = []
     }
 
     /** @return {boolean} True if renderer exists. May be false in case when WebGL context is lost
@@ -109,6 +113,14 @@ export class DxfViewer {
      */
     HasRenderer() {
         return Boolean(this.renderer)
+    }
+
+    GetClippingPlanes() {
+        return this.clippingPlanes
+    }
+
+    GetDrawingObject() {
+        return this.drawingObject
     }
 
     /**
@@ -124,6 +136,18 @@ export class DxfViewer {
 
     GetDxf() {
         return this.parsedDxf
+    }
+
+    SetClippingPlanes(planes) {
+        if (this.clippingPlanes.length !== planes.length
+          || planes.some((plane, i) => !plane.equals(this.clippingPlanes[i]))) {
+        this.clippingPlanes = planes
+
+        this.renderer.clippingPlanes = planes
+        this.materials.each(e => {
+          e.material.defines.NUMBER_CLIPPING_PLANES = planes.length
+        })
+      }
     }
 
     SetSize(width, height) {
@@ -284,7 +308,7 @@ export class DxfViewer {
             this.controls.dispose()
             this.controls = null
         }
-        this.scene.clear()
+        this.drawingObject.clear()
         for (const layer of this.layers.values()) {
             layer.Dispose()
         }
@@ -476,7 +500,7 @@ export class DxfViewer {
         const layer = this.layers.get(batch.key.layerName)
 
         for (const obj of objects) {
-            this.scene.add(obj)
+          this.drawingObject.add(obj)
             if (layer) {
                 layer.PushObject(obj)
             }
@@ -510,7 +534,11 @@ export class DxfViewer {
             depthTest: false,
             depthWrite: false,
             glslVersion: three.GLSL3,
-            side: three.DoubleSide
+            side: three.DoubleSide,
+            clipping: true,
+            defines: {
+              NUMBER_CLIPPING_PLANES: 0
+            }
         })
     }
 
@@ -555,7 +583,11 @@ export class DxfViewer {
             fragmentShader: shaders.fragment,
             depthTest: false,
             depthWrite: false,
-            glslVersion: three.GLSL3
+            glslVersion: three.GLSL3,
+            clipping: true,
+            defines: {
+              NUMBER_CLIPPING_PLANES: 0
+            }
         })
     }
 
@@ -605,17 +637,28 @@ export class DxfViewer {
             precision highp float;
             precision highp int;
             in vec2 position;
+
             ${fullInstanceAttr}
             ${pointInstanceAttr}
             uniform mat4 modelViewMatrix;
             uniform mat4 projectionMatrix;
             ${pointSizeUniform}
 
+            #if NUMBER_CLIPPING_PLANES > 0
+            out vec3 vClipPosition;
+            #endif
+
             void main() {
                 vec4 pos = vec4(position, 0.0, 1.0);
                 ${fullInstanceTransform}
                 ${pointInstanceTransform}
+
                 gl_Position = projectionMatrix * modelViewMatrix * pos;
+
+                #if NUMBER_CLIPPING_PLANES > 0
+                vClipPosition = - (modelViewMatrix * pos).xyz;
+                #endif
+
                 ${pointSizeAssigment}
             }
             `,
@@ -626,7 +669,25 @@ export class DxfViewer {
             uniform vec3 color;
             out vec4 fragColor;
 
+            #if NUMBER_CLIPPING_PLANES > 0
+            in vec3 vClipPosition;
+            uniform vec4 clippingPlanes[NUMBER_CLIPPING_PLANES];
+            #endif
+
             void main() {
+                #if NUMBER_CLIPPING_PLANES > 0
+
+                vec4 plane;
+
+                #pragma unroll_loop_start
+                for (int i = 0; i < NUMBER_CLIPPING_PLANES; i++) {
+                    plane = clippingPlanes[i];
+                    if (dot(vClipPosition, plane.xyz) > plane.w) discard;
+                }
+                #pragma unroll_loop_end
+
+                #endif
+
                 fragColor = vec4(color, 1.0);
             }
             `
