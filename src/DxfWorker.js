@@ -1,5 +1,5 @@
-import {DxfFetcher} from "./DxfFetcher"
-import {DxfScene} from "./DxfScene"
+import {DxfFetcher} from "./DxfFetcher.js"
+import {DxfScene} from "./DxfScene.js"
 import opentype from "opentype.js"
 
 const MSG_SIGNATURE = "DxfWorkerMsg"
@@ -28,9 +28,9 @@ export class DxfWorker {
 
     /**
      * @param url DXF file URL.
-     * @param fonts {?string[]} Fonts URLs.
+     * @param {?string[]} fonts Fonts URLs.
      * @param options Viewer options. See DxfViewer.DefaultOptions.
-     * @param progressCbk {Function?} (phase, processedSize, totalSize)
+     * @param {?Function} progressCbk (phase, processedSize, totalSize)
      */
     async Load(url, fonts, options, progressCbk) {
         if (this.worker) {
@@ -107,8 +107,10 @@ export class DxfWorker {
             return
         }
         const data = msg.data
-        if (msg.type === DxfWorker.WorkerMsg.PROGRESS && req.progressCbk) {
-            req.progressCbk(data.phase, data.size, data.totalSize)
+        if (msg.type === DxfWorker.WorkerMsg.PROGRESS) {
+            if (req.progressCbk) {
+                req.progressCbk(data.phase, data.size, data.totalSize)
+            }
             return
         }
         this.requests.delete(seq)
@@ -121,9 +123,9 @@ export class DxfWorker {
 
     async _OnError(error) {
         console.error("DxfWorker worker error", error)
-        const reqs = Array.from(this.requests.values)
+        const requests = Array.from(this.requests.values)
         this.requests.clear()
-        reqs.forEach(req => req.SetError(error))
+        requests.forEach(req => req.SetError(error))
     }
 
     async _SendRequest(type, data = null, progressCbk = null) {

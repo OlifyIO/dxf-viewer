@@ -1,48 +1,48 @@
 /** See TextRenderer.DefaultOptions for default values and documentation. */
 export type TextRendererOptions = {
-    curveSubdivision: number,
-    fallbackChar: string
+    curveSubdivision?: number,
+    fallbackChar?: string
 }
 
 /** See DxfScene.DefaultOptions for default values and documentation. */
 export type DxfSceneOptions = {
-    arcTessellationAngle: number,
-    minArcTessellationSubdivisions: number,
-    wireframeMesh: boolean,
-    suppressPaperSpace: boolean,
-    textOptions: TextRendererOptions,
+    arcTessellationAngle?: number,
+    minArcTessellationSubdivisions?: number,
+    wireframeMesh?: boolean,
+    suppressPaperSpace?: boolean,
+    textOptions?: TextRendererOptions,
 }
 
 /** See DxfViewer.DefaultOptions for default values and documentation. */
 export type DxfViewerOptions = {
-    canvasWidth: number,
-    canvasHeight: number,
-    autoResize: boolean,
-    clearColor: THREE.Color,
-    clearAlpha: number,
-    canvasAlpha: boolean,
-    canvasPremultipliedAlpha: boolean,
-    antialias: boolean,
-    colorCorrection: boolean,
+    canvasWidth?: number,
+    canvasHeight?: number,
+    autoResize?: boolean,
+    clearColor?: THREE.Color,
+    clearAlpha?: number,
+    canvasAlpha?: boolean,
+    canvasPremultipliedAlpha?: boolean,
+    antialias?: boolean,
+    colorCorrection?: boolean,
     canvas: HTMLCanvasElement | OffscreenCanvas,
     context: WebGLRenderingContext,
     autoClear: boolean,
-    blackWhiteInversion: boolean,
-    pointSize: number,
-    sceneOptions: DxfSceneOptions,
-    retainParsedDxf: boolean,
-    preserveDrawingBuffer: boolean,
-    fileEncoding: string,
-    enableControls: boolean,
-    origin: THREE.Vector2 | null
+    blackWhiteInversion?: boolean,
+    pointSize?: number,
+    sceneOptions?: DxfSceneOptions,
+    retainParsedDxf?: boolean,
+    preserveDrawingBuffer?: boolean,
+    fileEncoding?: string,
+    enableControls?: boolean,
+    origin?: THREE.Vector2 | null
 }
 
 export type DxfViewerLoadParams = {
     url: string,
-    fonts: string[] | null,
-    progressCbk: ((phase: "font" | "fetch" | "parse" | "prepare",
+    fonts?: string[] | null,
+    progressCbk?: ((phase: "font" | "fetch" | "parse" | "prepare",
                    processedSize: number, totalSize: number) => void) | null,
-    workerFactory: (() => Worker) | null,
+    workerFactory?: (() => Worker) | null,
     origin?: THREE.Vector2 | null
 }
 

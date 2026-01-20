@@ -1,4 +1,4 @@
-import * as helpers from '../ParseHelpers';
+import * as helpers from "../ParseHelpers.js";
 
 export default function EntityParser() {}
 
@@ -50,7 +50,7 @@ EntityParser.prototype.parseEntity = function (scanner, curr) {
                 entity.obliqueAngle = curr.value;
                 break;
             case 70:
-                entity.invisible = !!(curr.value & 0x01);
+                entity.hidden = !!(curr.value & 0x01);
                 entity.constant = !!(curr.value & 0x02);
                 entity.verificationRequired = !!(curr.value & 0x04);
                 entity.preset = !!(curr.value & 0x08);

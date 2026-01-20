@@ -1,10 +1,11 @@
-import * as three from "three";
-import { BatchingKey } from "./BatchingKey";
-import { DxfWorker } from "./DxfWorker";
-import { MaterialKey } from "./MaterialKey";
-import { ColorCode, DxfScene } from "./DxfScene";
-import { OrbitControls } from "./OrbitControls";
-import { RBTree } from "./RBTree";
+import * as three from "three"
+import {BatchingKey} from "./BatchingKey.js"
+import {DxfWorker} from "./DxfWorker.js"
+import {MaterialKey} from "./MaterialKey.js"
+import {ColorCode, DxfScene} from "./DxfScene.js"
+import {OrbitControls} from "./OrbitControls.js"
+import {RBTree} from "./RBTree.js"
+
 
 /** Level in "message" events. */
 const MessageLevel = Object.freeze({
@@ -13,10 +14,12 @@ const MessageLevel = Object.freeze({
     ERROR: "error"
 })
 
+
 /** The representation class for the viewer, based on Three.js WebGL renderer. */
 export class DxfViewer {
 
-    /** @param domContainer Container element to create the canvas in. Usually empty div. Should not
+    /**
+     * @param domContainer Container element to create the canvas in. Usually empty div. Should not
      *  have padding if auto-resize feature is used.
      * @param options Some options can be overridden if specified. See DxfViewer.DefaultOptions.
      */
@@ -103,6 +106,8 @@ export class DxfViewer {
         this.materials = new RBTree((m1, m2) => m1.key.Compare(m2.key))
         /* Indexed by layer name, value is Layer instance. */
         this.layers = new Map()
+        /* Default layer used when no layer specified. */
+        this.defaultLayer = null
         /* Indexed by block name, value is Block instance. */
         this.blocks = new Map()
 
@@ -113,7 +118,8 @@ export class DxfViewer {
         this.clippingPlanes = []
     }
 
-    /** @return {boolean} True if renderer exists. May be false in case when WebGL context is lost
+    /**
+     * @returns {boolean} True if renderer exists. May be false in case when WebGL context is lost
      * (e.g. after wake up from sleep). In such case page should be reloaded.
      */
     HasRenderer() {
@@ -196,17 +202,17 @@ export class DxfViewer {
     }
 
     /** Load DXF into the viewer. Old content is discarded, state is reset.
-     * @param url {string} DXF file URL.
-     * @param fonts {?string[]} List of font URLs. Files should have typeface.js format. Fonts are
+     * @param {string} url DXF file URL.
+     * @param {?string[]} fonts List of font URLs. Files should have typeface.js format. Fonts are
      *  used in the specified order, each one is checked until necessary glyph is found. Text is not
      *  rendered if fonts are not specified.
-     * @param progressCbk {?Function} (phase, processedSize, totalSize)
+     * @param {?Function} progressCbk (phase, processedSize, totalSize)
      *  Possible phase values:
      *  * "font"
      *  * "fetch"
      *  * "parse"
      *  * "prepare"
-     * @param workerFactory {?Function} Factory for worker creation. The worker script should
+     * @param {?Function} workerFactory Factory for worker creation. The worker script should
      *  invoke DxfViewer.SetupWorker() function.
      */
     async Load({url, fonts = null, progressCbk = null, workerFactory = null, origin = null}) {
@@ -234,6 +240,7 @@ export class DxfViewer {
         for (const layer of scene.layers) {
             this.layers.set(layer.name, new Layer(layer.name, layer.displayName, layer.color))
         }
+        this.defaultLayer = this.layers.get("0") ?? new Layer("0", "0", 0)
 
         /* Load all blocks on the first pass. */
         for (const batch of scene.batches) {
@@ -288,9 +295,12 @@ export class DxfViewer {
     }
 
     /** @return {Iterable<{name:String, color:number}>} List of layer names. */
-    GetLayers() {
+    GetLayers(nonEmptyOnly = false) {
         const result = []
         for (const lyr of this.layers.values()) {
+            if (nonEmptyOnly && lyr.objects.length == 0) {
+                continue
+            }
             result.push({
                 name: lyr.name,
                 displayName: lyr.displayName,
@@ -369,6 +379,10 @@ export class DxfViewer {
         cam.rotation.set(0, 0, 0)
         cam.updateMatrix()
         cam.updateProjectionMatrix()
+        if (this.controls) {
+            this.controls.target.set(cam.position.x, cam.position.y, 0)
+            this.controls.update()
+        }
         this._Emit("viewChanged")
     }
 
@@ -451,6 +465,9 @@ export class DxfViewer {
     }
 
     _CreateControls() {
+        if (this.controls) {
+            this.controls.dispose()
+        }
         const controls = this.controls = new OrbitControls(this.camera, this.canvas)
         controls.enableRotate = false
         controls.mouseButtons = {
@@ -465,6 +482,7 @@ export class DxfViewer {
         controls.mouseZoomSpeedFactor = 0.05
         controls.target = new three.Vector3(this.camera.position.x, this.camera.position.y, 0)
         controls.addEventListener("change", () => {
+            this.Render()
             this._Emit("viewChanged")
         })
         controls.update()
@@ -509,13 +527,10 @@ export class DxfViewer {
         }
         const objects = new Batch(this, scene, batch).CreateObjects()
 
-        const layer = this.layers.get(batch.key.layerName)
-
         for (const obj of objects) {
           this.drawingObject.add(obj)
-            if (layer) {
-                layer.PushObject(obj)
-            }
+            const layer = obj._dxfViewerLayer ?? this.defaultLayer
+            layer.PushObject(obj)
         }
     }
 
@@ -868,7 +883,7 @@ const InstanceType = Object.freeze({
 
 class Batch {
     /**
-     * @param viewer {DxfViewer}
+     * @param {DxfViewer} viewer
      * @param scene Serialized scene.
      * @param batch Serialized scene batch.
      */
@@ -922,16 +937,7 @@ class Batch {
             this.transforms1 = new three.InterleavedBufferAttribute(buf, 3, 3)
         }
 
-        if (this.key.geometryType === BatchingKey.GeometryType.BLOCK_INSTANCE ||
-            this.key.geometryType === BatchingKey.GeometryType.POINT_INSTANCE) {
-
-            const layer = this.viewer.layers.get(this.key.layerName)
-            if (layer) {
-                this.layerColor = layer.color
-            } else {
-                this.layerColor = 0
-            }
-        }
+        this.layer = this.key.layerName !== null ? this.viewer.layers.get(this.key.layerName) : null
     }
 
     GetInstanceType() {
@@ -946,7 +952,7 @@ class Batch {
     }
 
     /** Create scene objects corresponding to batch data.
-     * @param instanceBatch {?Batch} Batch with instance transform. Null for non-instanced object.
+     * @param {?Batch} instanceBatch Batch with instance transform. Null for non-instanced object.
      */
     *CreateObjects(instanceBatch = null) {
         if (this.key.geometryType === BatchingKey.GeometryType.BLOCK_INSTANCE ||
@@ -963,7 +969,10 @@ class Batch {
 
     *_CreateObjects(instanceBatch) {
         const color = instanceBatch ?
-            instanceBatch._GetInstanceColor(this.key.color) : this.key.color
+            instanceBatch._GetInstanceColor(this) : this.key.color
+
+        /* INSERT layer (if specified) takes precedence over layer specified in block definition. */
+        const layer = instanceBatch?.layer ?? this.layer
 
         //XXX line type
         const materialFactory =
@@ -1004,6 +1013,7 @@ class Batch {
             const obj = new objConstructor(geometry, material)
             obj.frustumCulled = false
             obj.matrixAutoUpdate = true
+            obj._dxfViewerLayer = layer
             return obj
         }
 
@@ -1017,7 +1027,7 @@ class Batch {
     }
 
     /**
-     * @param geometry {InstancedBufferGeometry}
+     * @param {InstancedBufferGeometry} geometry
      */
     _SetInstanceTransformAttribute(geometry) {
         if (!geometry.isInstancedBufferGeometry) {
@@ -1039,24 +1049,27 @@ class Batch {
         for (const batch of block.batches) {
             yield* batch.CreateObjects(this)
         }
-        if (this.hasOwnProperty("vertices")) {
+        if (this.vertices) {
             /* Dots for point shapes. */
             yield* this._CreateObjects()
         }
     }
 
     /**
-     * @param defColor {number} Color value for block definition batch.
+     * @param {Batch} blockBatch Block definition batch.
      * @return {number} RGB color value for a block instance.
      */
-    _GetInstanceColor(defColor) {
+    _GetInstanceColor(blockBatch) {
+        const defColor = blockBatch.key.color
         if (defColor === ColorCode.BY_BLOCK) {
             return this.key.color
         } else if (defColor === ColorCode.BY_LAYER) {
-            return this.layerColor
-        } else {
-            return defColor
+            if (blockBatch.layer) {
+                return blockBatch.layer.color
+            }
+            return this.layer ? this.layer.color : 0
         }
+        return defColor
     }
 }
 
