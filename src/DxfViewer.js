@@ -50,6 +50,10 @@ export class DxfViewer {
             return
         }
         const renderer = this.renderer
+        /* Prevent bounding spheres calculations which fails due to non-conventional geometry
+         * buffers layout. Also do not waste CPU on sorting which we do not need anyway.
+         */
+        renderer.sortObjects = false
         renderer.setPixelRatio(window.devicePixelRatio)
         renderer.autoClear = options.autoClear
 
