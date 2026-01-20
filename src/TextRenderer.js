@@ -1,8 +1,6 @@
-import {Entity} from "./DxfScene"
-import {ShapePath} from "three/src/extras/core/ShapePath.js"
-import {ShapeUtils} from "three/src/extras/ShapeUtils.js"
-import {Matrix3, Vector2} from "three"
-import {MTextFormatParser} from "./MTextFormatParser"
+import { Entity } from "./DxfScene";
+import { Matrix3, ShapePath, ShapeUtils, Vector2 } from "three";
+import { MTextFormatParser } from "./MTextFormatParser";
 
 /** Regex for parsing special characters in text entities. */
 const SPECIAL_CHARS_RE = /(?:%%([dpcou%]))|(?:\\U\+([0-9a-fA-F]{4}))/gi

@@ -2,39 +2,59 @@ import DxfParser from "./parser/DxfParser"
 
 /** Fetches and parses DXF file. */
 export class DxfFetcher {
-    constructor(url, encoding = "utf-8") {
+    constructor(url) {
         this.url = url
-        this.encoding = encoding
     }
 
-    /** @param progressCbk {Function} (phase, receivedSize, totalSize) */
-    async Fetch(progressCbk = null) {
-        const response = await fetch(this.url)
-        const totalSize = +response.headers.get('Content-Length')
+    GetDecodedText(arrayBuffers, encoding) {
+        let buffer = "";
+        let decoder = new TextDecoder(encoding);
+        for (const arrayBuffer of arrayBuffers) {
+            buffer += decoder.decode(arrayBuffer, {stream: true})
+        }
+        buffer += decoder.decode(new ArrayBuffer(0), {stream: false});
+        return buffer;
+    }
 
+    GetHeaderEncoding(header) {
+        if (!header) {
+            return null;
+        }
+        const version = (header.$ACADVER && header.$ACADVER.indexOf("AC") > -1)
+            ? parseInt(header.$ACADVER.replace("AC", ""))
+            : Number.NaN;
+
+        if (!isNaN(version) && (version <= 1018) && header.$DWGCODEPAGE) {
+            return header.$DWGCODEPAGE.replace('ANSI_', 'windows-');
+        }
+
+        return null;
+    }
+
+    async Fetch() {
+        const response = await fetch(this.url);
+        let fileEncoding = "utf-8";
+
+        const arrayBuffers = [];
         const reader = response.body.getReader()
-        let receivedSize = 0
-        //XXX streaming parsing is not supported in dxf-parser for now (its parseStream() method
-        // just accumulates chunks in a string buffer before parsing. Fix it later.
-        let buffer = ""
-        let decoder = new TextDecoder(this.encoding)
         while(true) {
             const {done, value} = await reader.read()
             if (done) {
-                buffer += decoder.decode(new ArrayBuffer(0), {stream: false})
                 break
             }
-            buffer += decoder.decode(value, {stream: true})
-            receivedSize += value.length
-            if (progressCbk !== null) {
-                progressCbk("fetch", receivedSize, totalSize)
-            }
+            arrayBuffers.push(value);
         }
 
-        if (progressCbk !== null) {
-            progressCbk("parse", 0, null)
-        }
         const parser = new DxfParser()
-        return parser.parseSync(buffer)
+        let text = this.GetDecodedText(arrayBuffers, fileEncoding);
+        const dxf = parser.parseSync(text, {headerOnly: true});
+
+        const headerEncoding = this.GetHeaderEncoding(dxf.header);
+
+        if (headerEncoding && headerEncoding !== fileEncoding) {
+            text = this.GetDecodedText(arrayBuffers, headerEncoding);
+        }
+
+        return parser.parseSync(text);
     }
 }

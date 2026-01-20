@@ -4,7 +4,7 @@ import AUTO_CAD_COLOR_INDEX from './AutoCadColorIndex';
 import Face from './entities/3dface';
 import Arc from './entities/arc';
 import AttDef from './entities/attdef';
-import Attribute from './entities/attribute'
+import Attribute from './entities/attribute';
 import Circle from './entities/circle';
 import Dimension from './entities/dimension';
 import Ellipse from './entities/ellipse';
@@ -20,7 +20,6 @@ import Text from './entities/text';
 import Hatch from './entities/hatch';
 import dimStyleCodes from './DimStyleCodes';
 //import Vertex from './entities/';
-
 import log from 'loglevel';
 
 //log.setLevel('trace');
@@ -67,9 +66,9 @@ DxfParser.prototype.registerEntityHandler = function(handlerType) {
     this._entityHandlers[handlerType.ForEntityName] = instance;
 }
 
-DxfParser.prototype.parseSync = function(source) {
+DxfParser.prototype.parseSync = function(source, options) {
     if(typeof(source) === 'string') {
-        return this._parse(source);
+        return this._parse(source, options ?? {});
     }else {
         console.error('Cannot read DXF source of type `' + typeof(source));
         return null;
@@ -91,7 +90,7 @@ DxfParser.prototype.parseStream = function(stream, done) {
 
     function onEnd() {
         try {
-            var dxf = self._parse(dxfString);
+            var dxf = self._parse(dxfString, {});
         } catch(err) {
             return done(err);
         }
@@ -103,7 +102,7 @@ DxfParser.prototype.parseStream = function(stream, done) {
     }
 };
 
-DxfParser.prototype._parse = function(dxfString) {
+DxfParser.prototype._parse = function(dxfString, options) {
     var scanner, curr, dxf = {}, lastHandle = 0;
     var dxfLinesArray = dxfString.split(/\r\n|\r|\n/g);
 
@@ -114,7 +113,7 @@ DxfParser.prototype._parse = function(dxfString) {
 
     var self = this;
 
-    var parseAll = function() {
+    var parseAll = function(options) {
         curr = scanner.next();
         while(!scanner.isEOF()) {
             if(curr.code === 0 && curr.value === 'SECTION') {
@@ -131,6 +130,9 @@ DxfParser.prototype._parse = function(dxfString) {
                     log.debug('> HEADER');
                     dxf.header = parseHeader();
                     log.debug('<');
+                    if (options.headerOnly) {
+                        return;
+                    }
                 } else if (curr.value === 'BLOCKS') {
                     log.debug('> BLOCKS');
                     dxf.blocks = parseBlocks();
@@ -392,7 +394,7 @@ DxfParser.prototype._parse = function(dxfString) {
                 log.warn(`Parsed ${actualCount} ${tableDefinition.dxfSymbolName}'s but expected ${expectedCount}`);
             }
         } else {
-            table[tableDefinition.tableRecordsProperty] = []
+          table[tableDefinition.tableRecordsProperty] = []
         }
         curr = scanner.next();
         return table;
@@ -882,7 +884,7 @@ DxfParser.prototype._parse = function(dxfString) {
         }
     }
 
-    parseAll();
+    parseAll(options);
     return dxf;
 };
 

@@ -74,7 +74,8 @@ export declare class DxfViewer {
     Render(): void
     SetSize(width: number, height: number): void
     SetView(center: THREE.Vector3, width: number): void
-    SetClippingPlanes(planes: THREE.Plane[]): void
+    SetClippingAlpha(alpha: number): void
+    SetClippingPlanes(planes: THREE.Plane[][]): void
     ShowLayer(name: string, show: boolean): void
     Subscribe(eventName: EventName, eventHandler: (event: any) => void): void
     Unsubscribe(eventName: EventName, eventHandler: (event: any) => void): void

@@ -1,10 +1,10 @@
-import * as three from "three"
-import {BatchingKey} from "./BatchingKey"
-import {DxfWorker} from "./DxfWorker"
-import {MaterialKey} from "./MaterialKey"
-import {ColorCode, DxfScene} from "./DxfScene"
-import {OrbitControls} from "./OrbitControls"
-import {RBTree} from "./RBTree"
+import * as three from "three";
+import { BatchingKey } from "./BatchingKey";
+import { DxfWorker } from "./DxfWorker";
+import { MaterialKey } from "./MaterialKey";
+import { ColorCode, DxfScene } from "./DxfScene";
+import { OrbitControls } from "./OrbitControls";
+import { RBTree } from "./RBTree";
 
 /** Level in "message" events. */
 const MessageLevel = Object.freeze({
@@ -51,11 +51,13 @@ export class DxfViewer {
         }
         const renderer = this.renderer
         /* Prevent bounding spheres calculations which fails due to non-conventional geometry
-         * buffers layout. Also do not waste CPU on sorting which we do not need anyway.
-         */
+           * buffers layout. Also do not waste CPU on sorting which we do not need anyway.
+           */
         renderer.sortObjects = false
-        renderer.setPixelRatio(window.devicePixelRatio)
+        renderer.setPixelRatio(window.devicePixelRatio);
+
         renderer.autoClear = options.autoClear
+        renderer.outputColorSpace = three.SRGBColorSpace;
 
         const camera = this.camera = new three.OrthographicCamera(-1, 1, 1, -1, 0.1, 2);
         camera.position.z = 1
@@ -97,8 +99,6 @@ export class DxfViewer {
         this.canvas.addEventListener("pointerdown", this._OnPointerEvent.bind(this))
         this.canvas.addEventListener("pointerup", this._OnPointerEvent.bind(this))
 
-        this.Render()
-
         /* Indexed by MaterialKey, value is {key, material}. */
         this.materials = new RBTree((m1, m2) => m1.key.Compare(m2.key))
         /* Indexed by layer name, value is Layer instance. */
@@ -109,6 +109,7 @@ export class DxfViewer {
         /** Set during data loading. */
         this.worker = null
 
+        this.clippingAlpha = 0
         this.clippingPlanes = []
     }
 
@@ -142,14 +143,27 @@ export class DxfViewer {
         return this.parsedDxf
     }
 
+    SetClippingAlpha(alpha) {
+        if (this.clippingAlpha !== alpha) {
+            this.clippingAlpha = alpha
+
+            this.materials.each(e => {
+                e.material.uniforms.clippingAlpha = { value: alpha }
+            })
+        }
+    }
+
     SetClippingPlanes(planes) {
         if (this.clippingPlanes.length !== planes.length
-          || planes.some((plane, i) => !plane.equals(this.clippingPlanes[i]))) {
+          || planes.some((shape, i) => !this.clippingPlanes[i].length !== shape.length
+              || shape.some((plane, j) => !this.clippingPlanes[i][j].equals(plane)))) {
         this.clippingPlanes = planes
 
-        this.renderer.clippingPlanes = planes
+        this.renderer.clippingPlanes = planes.flatMap(x => x)
         this.materials.each(e => {
-          e.material.defines.NUMBER_CLIPPING_PLANES = planes.length
+          e.material.defines.NUMBER_CLIPPING_SHAPES = planes.length
+          e.material.defines.NUMBER_CLIPPING_PLANES = this.renderer.clippingPlanes.length
+          e.material.uniforms.numClippingPlanesInShapes = { value: planes.map(p => p.length) }
         })
       }
     }
@@ -179,7 +193,6 @@ export class DxfViewer {
         }
         this._Emit("resized", {width, height})
         this._Emit("viewChanged")
-        this.Render()
     }
 
     /** Load DXF into the viewer. Old content is discarded, state is reset.
@@ -267,8 +280,6 @@ export class DxfViewer {
         if (this.options.enableControls) {
           this._CreateControls()
         }
-
-        this.Render()
     }
 
     Render() {
@@ -298,7 +309,6 @@ export class DxfViewer {
         for (const obj of layer.objects) {
             obj.visible = show
         }
-        this.Render()
     }
 
     /** Reset the viewer state. */
@@ -322,7 +332,6 @@ export class DxfViewer {
         this.materials.clear()
         this.SetView({x: 0, y: 0}, 2)
         this._Emit("cleared")
-        this.Render()
     }
 
     /** Free all resources. The viewer object should not be used after this method was called. */
@@ -457,7 +466,6 @@ export class DxfViewer {
         controls.target = new three.Vector3(this.camera.position.x, this.camera.position.y, 0)
         controls.addEventListener("change", () => {
             this._Emit("viewChanged")
-            this.Render()
         })
         controls.update()
     }
@@ -529,8 +537,14 @@ export class DxfViewer {
         const shaders = this._GenerateShaders(instanceType, false)
         return new three.RawShaderMaterial({
             uniforms: {
+                clippingAlpha: {
+                    value: 0
+                },
                 color: {
                     value: new three.Color(0xff00ff)
+                },
+                numClippingPlanesInShapes: {
+                    value: []
                 }
             },
             vertexShader: shaders.vertex,
@@ -539,9 +553,11 @@ export class DxfViewer {
             depthWrite: false,
             glslVersion: three.GLSL3,
             side: three.DoubleSide,
+            transparent: true,
             clipping: true,
             defines: {
-              NUMBER_CLIPPING_PLANES: 0
+              NUMBER_CLIPPING_PLANES: 0,
+              NUMBER_CLIPPING_SHAPES: 0
             }
         })
     }
@@ -576,8 +592,14 @@ export class DxfViewer {
         const shaders = this._GenerateShaders(instanceType, true)
         return new three.RawShaderMaterial({
             uniforms: {
+                clippingAlpha: {
+                    value: 0
+                },
                 color: {
                     value: new three.Color(0xff00ff)
+                },
+                numClippingPlanesInShapes: {
+                    value: []
                 },
                 pointSize: {
                     value: 2
@@ -589,8 +611,10 @@ export class DxfViewer {
             depthWrite: false,
             glslVersion: three.GLSL3,
             clipping: true,
+            transparent: true,
             defines: {
-              NUMBER_CLIPPING_PLANES: 0
+              NUMBER_CLIPPING_PLANES: 0,
+              NUMBER_CLIPPING_SHAPES: 0
             }
         })
     }
@@ -660,7 +684,7 @@ export class DxfViewer {
                 gl_Position = projectionMatrix * modelViewMatrix * pos;
 
                 #if NUMBER_CLIPPING_PLANES > 0
-                vClipPosition = - (modelViewMatrix * pos).xyz;
+                vClipPosition = pos.xyz;
                 #endif
 
                 ${pointSizeAssigment}
@@ -676,6 +700,8 @@ export class DxfViewer {
             #if NUMBER_CLIPPING_PLANES > 0
             in vec3 vClipPosition;
             uniform vec4 clippingPlanes[NUMBER_CLIPPING_PLANES];
+            uniform float numClippingPlanesInShapes[NUMBER_CLIPPING_SHAPES];
+            uniform float clippingAlpha;
             #endif
 
             void main() {
@@ -683,16 +709,36 @@ export class DxfViewer {
 
                 vec4 plane;
 
+                int numPlanes = 0;
+                bool clipped = true;
+
                 #pragma unroll_loop_start
-                for (int i = 0; i < NUMBER_CLIPPING_PLANES; i++) {
-                    plane = clippingPlanes[i];
-                    if (dot(vClipPosition, plane.xyz) > plane.w) discard;
+                for (int i = 0; i < NUMBER_CLIPPING_SHAPES; i++) {
+                    bool shapeClipped = false;
+                    for (int j = 0; j < int(numClippingPlanesInShapes[i]); j++) {
+                        plane = clippingPlanes[numPlanes];
+                        shapeClipped = shapeClipped || dot(vClipPosition, plane.xyz) <= plane.w;
+                        numPlanes++;
+                    }
+                    clipped = clipped && shapeClipped;
                 }
                 #pragma unroll_loop_end
 
-                #endif
+                fragColor = vec4(color, 1.0);
+
+                if (clipped) {
+                    if (clippingAlpha == 0.0) {
+                        discard;
+                    } else {
+                        fragColor.a = clippingAlpha;
+                    }
+                }
+
+                #else
 
                 fragColor = vec4(color, 1.0);
+
+                #endif
             }
             `
         }
